@@ -16,6 +16,8 @@ from pymongo import MongoClient
 import random
 from datetime import date
 
+import traceback
+
 
 hello_messages = ["Hi %s, my name is Aubbie !",
                   "It's a pleasure to meet you, %s. I'm Aubbie !",
@@ -103,7 +105,7 @@ async def on_message(message):
                 await message.channel.send("What will your character's name be ? Just the first name - bugs don't commonly have surnames.")
 
                 def check(m):
-                    return m.channel == message.channel and m.author.name == player["username"]
+                    return m.channel == message.channel and m.author.id == player["userid"]
 
                 name = await client.wait_for('message', check=check)
 
@@ -151,7 +153,7 @@ The following available species are as follows :
                 valid_species = ["ant", "cricket", "bee", "wasp", "snail", "moth", "butterfly", "beetle", "bird", "rodent"]
                                  
                 def check(m):
-                    return m.channel == message.channel and m.author.name == player["username"] and m.content in valid_species
+                    return m.channel == message.channel and m.author.id == player["userid"] and m.content in valid_species
 
                 species = await client.wait_for('message', check=check)
                 species = species.content
@@ -159,7 +161,7 @@ The following available species are as follows :
                 await message.channel.send("Now, what about your character's subspecies ? It can be any you'd like, as long as it falls under your character's species. For example, Monarch for a butterfly character, darkling for a beetle, etc.")
 
                 def check(m):
-                    return m.channel == message.channel and m.author.name == player["username"]
+                    return m.channel == message.channel and m.author.id == player["userid"]
 
                 subspecies = await client.wait_for('message', check=check)
                 subspecies = subspecies.content
@@ -181,7 +183,7 @@ The following available careers are as follows :
                 valid_jobs = ["postbug", "barista", "librarian", "gardener", "teacher", "larvaesitter", "cook", "artist"]
                                  
                 def check(m):
-                    return m.channel == message.channel and m.author.name == player["username"] and m.content in valid_jobs
+                    return m.channel == message.channel and m.author.id == player["userid"] and m.content in valid_jobs
 
                 job = await client.wait_for('message', check=check)
                 job = job.content
@@ -259,7 +261,7 @@ Characters : %s""" % (player["username"], player["goldleaves"], player["silverle
             account = postaldb.find_one({"userid": message.author.id})
             if account == None:
                 def check(m):
-                    return m.channel == message.channel and m.author.name == player["username"]
+                    return m.channel == message.channel and m.author.id == player["userid"]
                 await message.channel.send("Before we register your account, a couple questions. First, would you like to receieve notifications for new updates and features to AUBS ? [Y/N]")
                 feat_toggle = await client.wait_for('message', check=check)
                 feat_toggle = feat_toggle.content
@@ -282,7 +284,8 @@ Characters : %s""" % (player["username"], player["goldleaves"], player["silverle
                 postaldb.insert_one(account).inserted_id
 
                 await message.channel.send("You have successfully registered with the AUBS postal service.")
-            await message.channel.send("It seems you've already registered with the AUBS postal service." % (account["username"]))
+            else:
+              await message.channel.send("It seems you've already registered with the AUBS postal service.")
         elif message.content == "!mail inbox":
             account = postaldb.find_one({"userid": message.author.id})
             if not account == None:
@@ -299,9 +302,7 @@ Characters : %s""" % (player["username"], player["goldleaves"], player["silverle
             if not account == None:
                 sender = list(account['inbox_messages'])[int(message.content[11:]) - 1]
                 await message.channel.send("From : %s" % (sender))
-                body = account['inbox_messages'][sender].split('br/')
-                for i in body:
-                    await message.channel.send(i)
+                await message.channel.send(i)
                 
             else:
               await message.channel.send("It seems you haven't registered with the AUBS postal service, %s. You can do so with !mail register !" % (message.author))
@@ -315,6 +316,52 @@ Characters : %s""" % (player["username"], player["goldleaves"], player["silverle
                 postaldb.update_one({"userid" : player["userid"]},{"$set":{'inbox_messages' : temp_inbox}})
             else:
               await message.channel.send("It seems you haven't registered with the AUBS postal service, %s. You can do so with !mail register !" % (message.author))
+        elif message.content == "!mail send":
+            account = currencydb.find_one({"userid": message.author.id})
+            if not account == None and message.channel.name == "post-office-game":
+                def check(m):
+                    return m.channel == message.channel and m.author.id == player["userid"]
+
+                id = 1
+                for i in account['characters']:
+                    await message.channel.send("[%d] : %s" % (id, i))
+                    id += 1
+                    
+                await message.channel.send("Who will be the sender of this message ?")
+                sender = await client.wait_for('message', check=check)
+                sender = account['characters'][int(sender.content) - 1]
+                
+                await message.channel.send("Who will be the receiver of this message ?")
+                receiver = await client.wait_for('message', check=check)
+                receiver = characterdb.find_one({"name" : receiver.content})
+                
+                while receiver == None:
+                    await message.channel.send("Who will be the receiver of this message ?")
+                    receiver = await client.wait_for('message', check=check)
+                    receiver = characterdb.find_one({"name" : receiver.content})
+                
+                owner = postaldb.find_one({"username" : receiver['creator']['username']})
+                
+                if owner == None:
+                    await message.channel.send("Unfortunately, %s's owner hasn't yet registered with the AUBS postal service ! They may do so with !mail register." % receiver['name'])
+                    
+                else:
+                
+                    await message.channel.send("What will the content of the message be ?")
+                    body = await client.wait_for('message', check=check)
+                    body = body.content
+
+                    temp_inbox = owner['inbox_messages']
+                    temp_inbox[sender] = body
+                    
+                    postaldb.update_one({"username" : owner['username']},{"$set":{'inbox_messages' : temp_inbox}})
+                    
+                    await message.channel.send("%s's message has been sent to %s !" % (sender, receiver['name']))
+                
+            elif account == None:
+              await message.channel.send("It seems you haven't registered with the AUBS postal service, %s. You can do so with !mail register !" % (message.author))
+            else:
+              await message.channel.send("Sorry, %s, but you can only write & send letters in the Post Office ! Please try again in #post-office-game. " % (account["username"]))
 
 client.run(TOKEN)
 

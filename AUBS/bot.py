@@ -45,6 +45,8 @@ currencydb = db.currency
 
 characterdb = db.characters
 
+postaldb = db.postal
+
 @client.event
 async def on_ready():
     for guild in client.guilds:

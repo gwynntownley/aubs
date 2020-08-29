@@ -283,7 +283,38 @@ Characters : %s""" % (player["username"], player["goldleaves"], player["silverle
 
                 await message.channel.send("You have successfully registered with the AUBS postal service.")
             await message.channel.send("It seems you've already registered with the AUBS postal service." % (account["username"]))
-
+        elif message.content == "!mail inbox":
+            account = postaldb.find_one({"userid": message.author.id})
+            if not account == None:
+                id = 1
+                for i in list(account['inbox_messages']):
+                    await message.channel.send("[%d] : %s" % (id, i))
+                if len(list(account['inbox_messages'])) == 0:
+                    await message.channel.send("There are no new messages in your inbox.")
+                id += 1
+            else:
+              await message.channel.send("It seems you haven't registered with the AUBS postal service, %s. You can do so with !mail register !" % (message.author))
+        elif message.content[:10] == "!mail view":
+            account = postaldb.find_one({"userid": message.author.id})
+            if not account == None:
+                sender = list(account['inbox_messages'])[int(message.content[11:]) - 1]
+                await message.channel.send("From : %s" % (sender))
+                body = account['inbox_messages'][sender].split('br/')
+                for i in body:
+                    await message.channel.send(i)
+                
+            else:
+              await message.channel.send("It seems you haven't registered with the AUBS postal service, %s. You can do so with !mail register !" % (message.author))
+        elif message.content[:12] == "!mail delete":
+            account = postaldb.find_one({"userid": message.author.id})
+            if not account == None:
+                temp_inbox = account['inbox_messages']
+                sender = list(account['inbox_messages'])[int(message.content[13:]) - 1]
+                del(temp_inbox[sender])
+                await message.channel.send("You have deleted a letter from %s." % (sender))
+                postaldb.update_one({"userid" : player["userid"]},{"$set":{'inbox_messages' : temp_inbox}})
+            else:
+              await message.channel.send("It seems you haven't registered with the AUBS postal service, %s. You can do so with !mail register !" % (message.author))
 
 client.run(TOKEN)
 

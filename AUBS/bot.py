@@ -255,6 +255,34 @@ Characters : %s""" % (player["username"], player["goldleaves"], player["silverle
         elif message.content[:2] == "!p":
             await message.channel.send(message.content[2:])
             print(message.content[2:])
+        elif message.content == "!mail register":
+            account = postaldb.find_one({"userid": message.author.id})
+            if account == None:
+                def check(m):
+                    return m.channel == message.channel and m.author.name == player["username"]
+                await message.channel.send("Before we register your account, a couple questions. First, would you like to receieve notifications for new updates and features to AUBS ? [Y/N]")
+                feat_toggle = await client.wait_for('message', check=check)
+                feat_toggle = feat_toggle.content
+                await message.channel.send("Next and final question : would you also like notifications when other players interact with your account ? Such as purchasing one of your items or interacting with one of your characters? [Y/N]")
+                inte_toggle = await client.wait_for('message', check=check)
+                inte_toggle = inte_toggle.content
+                account = {
+                # player info
+                "username": message.author.name,
+                "userid": message.author.id,
+                # settings
+                'features' : feat_toggle,
+                'interaction' : inte_toggle,
+                # inbox
+                'inbox_messages' : {
+                    'AUBS Postal Service' : "Dear valued patron, br/ Thank you for putting your mail in our hands. We hope we will make you proud with our diligence and dedication. br/ Best, br/ Your Local Postal Service"
+                }
+                    }
+                
+                postaldb.insert_one(account).inserted_id
+
+                await message.channel.send("You have successfully registered with the AUBS postal service.")
+            await message.channel.send("It seems you've already registered with the AUBS postal service." % (account["username"]))
 
 
 client.run(TOKEN)
